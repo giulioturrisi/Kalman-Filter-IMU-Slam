@@ -33,7 +33,8 @@
 % #   PURPOSE.
 % #
 
-function out = observation(from_id, land_id, obs)
+function out = observation(from_id, land_id, obs,information)
   out.pose_id = from_id;
   out.observation = landmark(land_id, obs);
+  out.information = information;
 end

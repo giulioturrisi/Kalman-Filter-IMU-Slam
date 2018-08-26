@@ -32,17 +32,12 @@
 % #   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 % #   PURPOSE.
 % #
-%   
-% addLandmark to a map
 
-function [map] = addLandmark(map, id, x, y)
+%This function extracts angular information about the translation and rotation of robot state from precedent, is a differential measure
 
-map_dim = length(map);
-
-if( map_dim == 0 )
-  map = landmark(id, [x, y]);
-else
-  map(end+1) = landmark(id, [x, y]);
-endif 
-
+function out = transition_IMU(id_from,sensor_id,transition,information)
+	out.id_from = id_from;
+	out.sensor_id = sensor_id;
+	out.pose = pose3d(id_from,transition(1),transition(2),transition(3),transition(4),transition(5),transition(6));
+	out.information = information;
 end

@@ -48,6 +48,9 @@ function out = landmark(varargin)
     out.x_pose = var2(1); %x-pose
     out.y_pose = var2(2); %y-pose
     end
+    if(length(var2) == 3)
+    out.x_pose = var2(1); %x-pose
+    out.y_pose = var2(2); %y-pose
+    out.z_pose = var2(3); %z-pose
   end  
-
 end

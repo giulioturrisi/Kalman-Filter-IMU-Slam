@@ -32,17 +32,13 @@
 % #   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 % #   PURPOSE.
 % #
-%   
-% addLandmark to a map
 
-function [map] = addLandmark(map, id, x, y)
-
-map_dim = length(map);
-
-if( map_dim == 0 )
-  map = landmark(id, [x, y]);
-else
-  map(end+1) = landmark(id, [x, y]);
-endif 
-
+function out = params_offset(sensor_id, x_offset, y_offset, z_offset, phi_offset, theta_offset, psi_offset)
+  out.id = sensor_id;
+  out.x = x_offset;
+  out.y = y_offset;
+  out.z = z_offset;
+  out.phi = phi_offset;
+  out.theta = theta_offset;
+  out.psi = psi_offset;
 end

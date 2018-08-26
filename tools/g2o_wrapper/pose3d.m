@@ -32,17 +32,14 @@
 % #   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 % #   PURPOSE.
 % #
-%   
-% addLandmark to a map
 
-function [map] = addLandmark(map, id, x, y)
-
-map_dim = length(map);
-
-if( map_dim == 0 )
-  map = landmark(id, [x, y]);
-else
-  map(end+1) = landmark(id, [x, y]);
-endif 
+function out = pose3d(id,x,y,z,phi,theta,psi)
+	out.id = id;
+	out.x = x;
+	out.y = y;
+	out.z = z;
+	out.phi = phi;
+	out.theta = theta;
+	out.psi = psi;
 
 end
