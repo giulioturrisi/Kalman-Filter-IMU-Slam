@@ -19,7 +19,7 @@
 #  [mu, sigma]: the updated mean and covariance
 #  [id_to_state_map, state_to_id_map]: the updated mapping vector between landmark position in mu vector and its id
 
-function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, observations, id_to_state_map, state_to_id_map)
+function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, observations, id_to_state_map, state_to_id_map, correction_offset)
 
   #determine how many landmarks we have seen in this step
   num_landmarks_measured = length(observations.observation);
@@ -28,22 +28,39 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
   state_dim = size(mu,1);
 
   #dimension of the current map (how many landmarks we have already seen)
-  num_landmarks = (state_dim-3)/2;
+  num_landmarks = (state_dim-6)/3;
 
   #if I've seen no landmarks, i do nothing
   if (num_landmarks_measured == 0)
     return;
   endif
 
-  mu_t     = mu(1:2,:); # translational part of the robot pose
-  mu_theta = mu(3); # rotation of the robot
+  %Offset calculations for measurements
+  R_offset = euler2Rot(correction_offset.phi, correction_offset.theta, correction_offset.psi);
+  v_offset = [correction_offset.x, correction_offset.y, correction_offset.z]';
+
+  %Sigma of the observations
+  sigma_observation = inv(observations.information);
+  sigma_observation = R_offset * sigma_observation * R_offset';
+
+  mu_pos = mu(1:3,:); # translational part of the robot pose
+  mu_rot = [mu(4,:), mu(5,:), mu(6,:)];
+  #mu_theta = mu(3); # rotation of the robot
 
   # re precompute some quantities that come in handy later on
-  c   = cos(mu_theta);
-  s   = sin(mu_theta);
-  R   = [c -s; s c];  #rotation matrix
-  Rt  = [c,s;-s c];    #transposed rotation matrix
-  Rtp = [-s,c;-c,-s]; #derivative of transposed rotation matrix
+  #c   = cos(mu_theta);
+  #s   = sin(mu_theta);
+  #R   = [c -s; s c];  #rotation matrix
+  #Rt  = [c,s;-s c];    #transposed rotation matrix
+  #Rtp = [-s,c;-c,-s]; #derivative of transposed rotation matrix
+  phi = mu_rot(1);
+  theta = mu_rot(2);
+  psi = mu_rot(3);
+  dRx = Rx_prime(phi);
+  dRy = Ry_prime(theta);
+  dRz = Rz_prime(psi);
+  R = euler2Rot(phi,theta,psi);
+  Rt = R';
 
   # for below computation, we need to count how many observations 
   # of old landmarks we have
@@ -69,7 +86,7 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
     state_pos_of_landmark = id_to_state_map(measurement.id);
 
     #compute the index (vector coordinate) in the state vector corresponding to the pose of the landmark;	
-    landmark_state_vector_index = 4+2*(state_pos_of_landmark-1);
+    landmark_state_vector_index = 7+3*(state_pos_of_landmark-1);
 
     #IF current landmark is a REOBSERVED LANDMARK
     if(state_pos_of_landmark != -1) 
@@ -77,31 +94,37 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
       #increment the counter of observations originating
       #from already known landmarks
       num_old_landmarks_measured++;
+      measurement_true = R_offset * [measurement.x_pose; measurement.y_pose; measurement.z_pose]  + v_offset;
 
       # where we see the landmark
-      z_t(end+1,:) = measurement.x_pose; 
-      z_t(end+1,:) = measurement.y_pose;
+      z_t(end+1,:) = measurement_true(1); 
+      z_t(end+1,:) = measurement_true(2);
+      z_t(end+1,:) = measurement_true(3);
 
       #fetch the position of the landmark in the state (its x and y coordinate)
-      landmark_mu=mu(landmark_state_vector_index:landmark_state_vector_index+1,:);
+      landmark_mu=mu(landmark_state_vector_index:landmark_state_vector_index+2,:);
       
       #where I predict i will see that landmark
-      delta_t            = landmark_mu-mu_t;
+      delta_t            = landmark_mu-mu_pos;
       measure_prediction = Rt* delta_t;
 
       #add prediction to prediction vector
       h_t(end+1,:) = measure_prediction(1);
       h_t(end+1,:) = measure_prediction(2);
+      h_t(end+1,:) = measure_prediction(3);
 
       #jacobian w.r.t robot
-      C_m=zeros(2,state_dim);
-      C_m(1:2,1:2) = -Rt;
-      C_m(1:2,3)   = Rtp*delta_t;
+      C_m=zeros(3,state_dim);
+      C_m(1:3,1:3) = -Rt;
+      C_m(1:3,4) = (Rz(psi) * Ry(theta) * dRx)' * delta_t;
+      C_m(1:3,5) = (Rz(psi) * dRy   * Rx(phi))' * delta_t;
+      C_m(1:3,6) = (dRz * Ry(theta) * Rx(phi))' * delta_t;
 
       #jacobian w.r.t landmark
-      C_m(:,landmark_state_vector_index:landmark_state_vector_index+1)=Rt;
+      C_m(:,landmark_state_vector_index:landmark_state_vector_index+2)=Rt;
       C_t(end+1,:) = C_m(1,:);
       C_t(end+1,:) = C_m(2,:);
+      C_t(end+1,:) = C_m(3,:);
     endif
   endfor
 
@@ -111,7 +134,7 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
 
     #observation noise
     noise   = 0.01;
-    sigma_z = eye(2*num_old_landmarks_measured)*noise;
+    sigma_z = eye(3*num_old_landmarks_measured)*noise;
 
     #Kalman gain
     K = sigma * C_t'*(inv(C_t*sigma*C_t' + sigma_z));
@@ -127,15 +150,25 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
 
   #since I have applied the correction, I need to update my
   #data with the new mu values
-  mu_t     = mu(1:2,:); #translational part of the robot pose
-  mu_theta = mu(3);     #rotation of the robot
+  #mu_t     = mu(1:2,:); #translational part of the robot pose
+  #mu_theta = mu(3);     #rotation of the robot
+  mu_pos = mu(1:3,:); # translational part of the robot pose
+  mu_rot = [mu(4,:), mu(5,:), mu(6,:)];
 
   #re precompute some quantities that come in handy later on
-  c   = cos(mu_theta);
-  s   = sin(mu_theta);
-  R   = [c -s; s c];  #rotation matrix
-  Rt  = [c,s;-s c];    #transposed rotation matrix
-  Rtp = [-s,c;-c,-s]; #derivative of transposed rotation matrix
+  #c   = cos(mu_theta);
+  #s   = sin(mu_theta);
+  #R   = [c -s; s c];  #rotation matrix
+  #Rt  = [c,s;-s c];    #transposed rotation matrix
+  #Rtp = [-s,c;-c,-s]; #derivative of transposed rotation matrix
+  phi = mu_rot(1);
+  theta = mu_rot(2);
+  psi = mu_rot(3);
+  dRx = Rx_prime(phi);
+  dRy = Ry_prime(theta);
+  dRz = Rz_prime(psi);
+  R = euler2Rot(phi,theta,psi);
+  Rt = R';
 
   #Now its time to add, if observed, the NEW landmaks, without applying any correction
   for i=1:num_landmarks_measured
@@ -152,32 +185,35 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
       #adjust direct and reverse mappings
       num_landmarks++;
       id_to_state_map(measurement.id)=num_landmarks;
+      disp(num_landmarks)
       state_to_id_map(num_landmarks)=measurement.id;
+
+      measurement_true = R_offset * [measurement.x_pose; measurement.y_pose; measurement.z_pose]  + v_offset;
       
       #landmark position in the world
-      land_pose_world = mu_t + R*[measurement.x_pose;measurement.y_pose];
+      land_pose_world = mu_pos + R *  measurement_true;
 
       #retrieve from the index the position of the landmark block in the state
-      new_landmark_state_vector_index=4+2*(num_landmarks-1);
+      new_landmark_state_vector_index=7+3*(num_landmarks-1);
  
       #increase mu and sigma size
-      mu(new_landmark_state_vector_index:new_landmark_state_vector_index+1,1) = land_pose_world;
+      mu(new_landmark_state_vector_index:new_landmark_state_vector_index+2,1) = land_pose_world;
 
       #initial noise assigned to a new landmark
       #for simplicity we put a high value only in the diagonal.
       #A more deeper analysis on the initial noise should be made.
       initial_landmark_noise=2;
-      landmark_sigma = eye(2)*initial_landmark_noise;
+      landmark_sigma = eye(3)*initial_landmark_noise;
 
       #extend the structure
       sigma(new_landmark_state_vector_index,:)   = 0;
-      sigma(new_landmark_state_vector_index+1,:) = 0;
+      sigma(new_landmark_state_vector_index+2,:) = 0;
       sigma(:,new_landmark_state_vector_index)   = 0;
-      sigma(:,new_landmark_state_vector_index+1) = 0;
+      sigma(:,new_landmark_state_vector_index+2) = 0;
 
       #add the covariance block
-      sigma(new_landmark_state_vector_index:new_landmark_state_vector_index+1,
-	    new_landmark_state_vector_index:new_landmark_state_vector_index+1)=landmark_sigma;
+      sigma(new_landmark_state_vector_index:new_landmark_state_vector_index+2,
+	    new_landmark_state_vector_index:new_landmark_state_vector_index+2)=landmark_sigma;
 
       printf("observed new landmark with identifier: %i \n",measurement.id);
       fflush(stdout);

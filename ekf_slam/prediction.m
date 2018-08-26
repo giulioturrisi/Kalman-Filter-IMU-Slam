@@ -17,57 +17,36 @@
 # outputs 
 # [mu, sigma] are mean and covariance of the estimate after transition
 
-function [mu, sigma] = prediction(mu, sigma, control_input)
+function [mu, sigma] = prediction(mu, sigma, transition,prediction_offset)
 
-  #domain spaces
-  dimension_mu = size(mu, 1);
-  dimension_u  = 2;
+%Applying the offset
+disp(transition)
+pose = transition.pose;
 
-  #readability: the robot pose
-  mu_r = mu(1:3);
+v_offset = [prediction_offset.x,prediction_offset.y,prediction_offset.z, prediction_offset.phi, prediction_offset.theta, prediction_offset.psi]';
 
-  #get the control input u = [ux, uy, utheta]
-  u = control_input.v;
+%T_offset is Sensor seen from R
 
-  #predict the robot motion, this is our f(x,u) function in the slides
-  #the transition model only affects the robot pose not the landmarks
-  mu_r = transition_model(mu_r, u);
+T_offset = v2t(v_offset);
+R_offset = T_offset(1:3,1:3);
 
-  #update the complete state
-  mu(1:3) = mu_r;
+v_predict = [pose.x, pose.y, pose.z, pose.phi, pose.theta, pose.psi]';
 
-  #readability: current pose
-  mu_x     = mu_r(1);
-  mu_y     = mu_r(2);
-  mu_theta = mu_r(3);
+T_predict = v2t(v_predict);
 
-  #readability: current control input
-  u_x     = u(1); #translational velocity
-  u_theta = u(3); #rotational velocity
+T_true = T_offset * T_predict;
 
-  #Jacobian A
-  #initialize A as an identity and fill only the robot block
-  A = eye(dimension_mu, dimension_mu);
-  A(1:3,1:3) = [1, 0, -u_x*sin(mu_theta);
-                0, 1, u_x*cos(mu_theta);
-                0, 0, 1];
+%Coovariance's offset
 
-  #Jacobian B
-  #for each state variable we have to associate the available control inputs
-  B = zeros(dimension_mu, dimension_u);
-  B(1:3,:) = [cos(mu_theta), 0;
-              sin(mu_theta), 0;
-              0, 1];
+coov = inv(transition.information);
 
-  #control noise u
-  sigma_v   = 0.1;     #constant part
-  sigma_u_1 = u_x;     #translational velocity dependent part
-  sigma_u_2 = u_theta; #rotational velocity dependent part
+coov(1:3,1:3) = R_offset * coov(1:3,1:3) * R_offset';
+#coov(1:4,1:4) = T_offset * coov(1:4,1:4) * T_offset';
 
-  #compose control noise covariance sigma_u
-  sigma_u = [sigma_v^2+sigma_u_1^2, 0;
-             0, sigma_v^2+sigma_u_2^2];
+%Measures offset
 
-  #predict sigma
-  sigma = A*sigma*A' + B*sigma_u*B';
+mu(1:6) = t2v(T_true);
+#normalized_angles = [normalize_angle(mu(4));normalize_angle(mu(5));normalize_angle(mu(6))];
+#mu(4:6) = normalized_angles;
+sigma(1:6,1:6) = coov;
 end

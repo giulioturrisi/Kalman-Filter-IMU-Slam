@@ -6,19 +6,24 @@ clc
 addpath "../../"
 addpath "../tools/g2o_wrapper"
 addpath "../tools/visualization"
-source "../tools/utilities/geometry_helpers_2d.m"
+source "../tools/utilities/geometry_helpers_3d.m"
 
 #load your own dataset dataset, without landmarks (first entry remains empty)
-[_, poses, transitions, observations] = loadG2o("../datasets/dataset_point.g2o");
-
+[landmarks, poses, transitions, observations,params_offset] = loadG2o("../dataset/kalman_based_imu_slam.g2o");
+correction_offset = params_offset(1);
+prediction_offset = params_offset(2);
 #set initial pose at the origin - we don't know the map and neither our location
-mu = [0;  #x coordinate
-      0;  #y coordinate
-      0]; #orientation theta (yaw angle)
-printf("initial pose: [%f, %f, %f]\n", mu(1), mu(2), mu(3));
+#mu = [0;  #x coordinate
+#      0;  #y coordinate
+#      0]; #orientation theta (yaw angle)
+#printf("initial pose: [%f, %f, %f]\n", mu(1), mu(2), mu(3));
+mu = [poses(1).x;poses(1).y;poses(1).z;poses(1).phi;poses(1).theta;poses(1).psi];
+printf("Initial pose : %f, %f, %f, %f, %f, %f, %f \n", mu(1), mu(2), mu(3),mu(4),mu(5),mu(6));
+
 
 #initialize covariance: high value means high uncertainty
-sigma = eye(3);
+#sigma = eye(3);
+sigma = inv(transitions(1).information);
 
 #bookkeeping: to and from mapping between robot pose (x,y, theta) and landmark indices (i)
 #all mappings are initialized with invalid value -1 (meaning that the index is not mapped)
@@ -27,34 +32,54 @@ id_to_state_map = ones(10000, 1)*-1;
 state_to_id_map = ones(10000, 1)*-1;
 
 #initialize GUI with initial situation
-figure("name", "ekf_slam",    #figure title
-       "numbertitle", "off"); #remove figure number
+#figure("name", "ekf_slam",    #figure title
+#       "numbertitle", "off"); #remove figure number
 trajectory = [mu(1), mu(2)];
-plotStateEKFSLAM(mu, sigma, [], state_to_id_map, trajectory);
+#mu_plot = [mu(1), mu(2)]
+#plotStateEKFSLAM(mu, sigma, [], state_to_id_map, trajectory);
 
 #simulation cycle: for the number of transitions recorded in the dataset
 for t = 1:length(transitions)
 
-  #obtain current transition
-  transition = transitions(t);
-  
-  #obtain current observation
-  observation = observations(t);
+  if(t <= 88) 
 
-  #EKF predict
-  [mu, sigma] = prediction(mu, sigma, transition);
+    #obtain current transition
+    transition = transitions(t);
+    
+    #obtain current observation
+    observation = observations(t);
 
-  #EKF correct
-  [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, 
-                                                             sigma, observation, 
-                                                             id_to_state_map, 
-                                                             state_to_id_map);
+    #EKF predict
+    #[mu, sigma] = prediction(mu, sigma, transition);
+    [mu, sigma] = prediction(mu, sigma, transition,prediction_offset);
 
-  #display current state and wait briefly
-  printf("current pose: [%f, %f, %f]\n", mu(1), mu(2), mu(3));
-  trajectory = [trajectory; mu(1), mu(2)];
-  plotStateEKFSLAM(mu, sigma, observation, state_to_id_map, trajectory);
-  pause(.1)
-  fflush(stdout);	
+    #EKF correct
+    [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, 
+                                                              sigma, observation, 
+                                                              id_to_state_map, 
+                                                              state_to_id_map,
+                                                              correction_offset);
+
+    disp("#corrected");
+		disp(mu(1));
+    disp(mu(2));
+    disp(mu(3));
+		disp(mu(4));
+    disp(mu(5));
+    disp(mu(6));
+		disp("#");
+    disp("truth")
+		disp(poses(t));
+		disp("#");
+
+    #display current state and wait briefly
+    #printf("current pose: [%f, %f, %f]\n", mu(1), mu(2), mu(3));
+    #trajectory = [trajectory; mu(1), mu(2)];
+    #mu_plot = [mu(1), mu(2), 0]
+    #disp(observation)
+    #plotStateEKFSLAM(mu_plot, sigma(1:3,1:3), observation, state_to_id_map, trajectory);
+    pause(.1)
+    fflush(stdout);	
+  endif
 endfor
 
