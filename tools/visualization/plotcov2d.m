@@ -10,14 +10,16 @@ function h = plotcov2d( centerX, centerY, cov, color, sigmaFactor)
 % http://www.cs.columbia.edu/~jebara/6998-01/matlab.html
 
 cov = [cov(1,1) cov(1,2); cov(2,1) cov(2,2)];
+#disp("cov disegnata")
+#disp(cov)
 
 mu = [ centerX; centerY];
 [V,D]=eig(cov);
 lam1 = D(1,1);
 lam2 = D(2,2);
 if lam1 < 0 || lam2 < 0  % adapted to octave | to || by Bartolomeo Della Corte 
-  disp("Non-positive definite matrix:");
-  disp(cov);
+  #disp("Non-positive definite matrix:");
+  #disp(cov);
   return;
 end
 v1 = V(:,1);
@@ -44,7 +46,7 @@ h=plot( pts(1,:), pts(2,:), 'Color', color);
 hold on
 minor1 = mu-a*v1; 
 minor2 = mu+a*v1;
-line([minor1(1) minor2(1)], [minor1(2) minor2(2)], 'Color', color)
+line([minor1(1) minor2(1)], [minor1(2) minor2(2)], 'Color', color,'Linewidth',3)
 major1 = mu-b*v2; major2 = mu+b*v2;
-hl=line([major1(1) major2(1)], [major1(2) major2(2)], 'Color', color);
+hl=line([major1(1) major2(1)], [major1(2) major2(2)], 'Color', color,'Linewidth',3);
 

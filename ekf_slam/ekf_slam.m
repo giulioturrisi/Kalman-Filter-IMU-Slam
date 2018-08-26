@@ -30,14 +30,15 @@ sigma = inv(transitions(1).information);
 #since we do not know how many landmarks we will observe, we allocate a large enough buffer
 id_to_state_map = ones(10000, 1)*-1;
 state_to_id_map = ones(10000, 1)*-1;
+#reobserved = ones(1000, 1)*0
 
 #initialize GUI with initial situation
-#figure("name", "ekf_slam",    #figure title
-#       "numbertitle", "off"); #remove figure number
+figure("name", "ekf_slam",    #figure title
+       "numbertitle", "off"); #remove figure number
 trajectory = [mu(1), mu(2)];
-#mu_plot = [mu(1), mu(2)]
+#mu_plot = [mu(1), mu(2), mu(6)]
 #plotStateEKFSLAM(mu, sigma, [], state_to_id_map, trajectory);
-
+last_landmark_id = 1
 #simulation cycle: for the number of transitions recorded in the dataset
 for t = 1:length(transitions)
 
@@ -47,19 +48,28 @@ for t = 1:length(transitions)
     transition = transitions(t);
     
     #obtain current observation
-    observation = observations(t);
+    #observation = observations(t);
 
     #EKF predict
     #[mu, sigma] = prediction(mu, sigma, transition);
     [mu, sigma] = prediction(mu, sigma, transition,prediction_offset);
+    #disp("mu predic")
+    #disp(mu(3))
+    
+    observation = data_association(mu, sigma, observations(t), state_to_id_map);
+    #disp(observation)
 
     #EKF correct
-    [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, 
+    [mu, sigma, id_to_state_map, state_to_id_map,last_landmark_id] = correction(mu, 
                                                               sigma, observation, 
                                                               id_to_state_map, 
                                                               state_to_id_map,
-                                                              correction_offset);
+                                                              correction_offset,
+                                                              last_landmark_id);
+    #disp("mu correct")
+    #disp(mu(3))
 
+    #disp(sigma)
     disp("#corrected");
 		disp(mu(1));
     disp(mu(2));
@@ -67,7 +77,7 @@ for t = 1:length(transitions)
 		disp(mu(4));
     disp(mu(5));
     disp(mu(6));
-		disp("#");
+		#disp("#");
     disp("truth")
 		disp(poses(t));
 		disp("#");
@@ -75,11 +85,21 @@ for t = 1:length(transitions)
     #display current state and wait briefly
     #printf("current pose: [%f, %f, %f]\n", mu(1), mu(2), mu(3));
     #trajectory = [trajectory; mu(1), mu(2)];
-    #mu_plot = [mu(1), mu(2), 0]
+    trajectory = [trajectory;poses(t).x, poses(t).y]
+    #mu_plot = [mu(1), mu(2), mu(6)]
     #disp(observation)
-    #plotStateEKFSLAM(mu_plot, sigma(1:3,1:3), observation, state_to_id_map, trajectory);
+    R_offset = euler2Rot(correction_offset.phi, correction_offset.theta, correction_offset.psi);
+    v_offset = [correction_offset.x, correction_offset.y, correction_offset.z]';
+    plotStateEKFSLAM(mu, sigma, observation, state_to_id_map, trajectory,R_offset,v_offset);
     pause(.1)
     fflush(stdout);	
   endif
 endfor
+#disp("REOBBBB")
+#disp(reobserved)
+#filename = "reobserved.txt";
+#fid = fopen (filename, "w");
+#fwrite (fid, reobserved);
+#fclose (fid);
+pause(10000)
 

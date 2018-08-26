@@ -186,9 +186,9 @@ function R = quat2rot(qx,qy,qz,qw)
   sinp = 2.0 * (q_w * q_y - q_z * q_x);
  
   if(sinp > 1.0)
-      sinp=1.0;
+    theta=1.0;
   elseif(sinp<-1.0)
-      sinp=-1.0;
+    theta=-1.0;
   else
     theta = asin(sinp);
   endif
@@ -197,9 +197,9 @@ function R = quat2rot(qx,qy,qz,qw)
   cosy = 1.0 - 2.0 * (q_y * q_y + q_z * q_z);  
   psi = atan2(siny, cosy);
 
-  phi = normalize_angle(phi);
-  theta = normalize_angle(theta);
-  psi = normalize_angle(psi);
+  #phi = normalize_angle(phi);
+  #theta = normalize_angle(theta);
+  #psi = normalize_angle(psi);
 
  end
 

@@ -19,7 +19,7 @@
 #  [mu, sigma]: the updated mean and covariance
 #  [id_to_state_map, state_to_id_map]: the updated mapping vector between landmark position in mu vector and its id
 
-function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, observations, id_to_state_map, state_to_id_map, correction_offset)
+function [mu, sigma, id_to_state_map, state_to_id_map,last_landmark_id] = correction(mu, sigma, observations, id_to_state_map, state_to_id_map, correction_offset,last_landmark_id)
 
   #determine how many landmarks we have seen in this step
   num_landmarks_measured = length(observations.observation);
@@ -31,7 +31,9 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
   num_landmarks = (state_dim-6)/3;
 
   #if I've seen no landmarks, i do nothing
+  disp(num_landmarks_measured)
   if (num_landmarks_measured == 0)
+    disp("esco")
     return;
   endif
 
@@ -82,6 +84,10 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
     #retrieve info about the observed landmark
     measurement = observations.observation(i);
 
+    if (measurement.id < 1)
+	    continue;
+    endif
+
     #fetch the position in the state vector corresponding to the actual measurement
     state_pos_of_landmark = id_to_state_map(measurement.id);
 
@@ -90,6 +96,9 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
 
     #IF current landmark is a REOBSERVED LANDMARK
     if(state_pos_of_landmark != -1) 
+      disp("REAOBSERVEEED")
+      disp(measurement.id)
+      #reobserved(measurement.id) = 2
 
       #increment the counter of observations originating
       #from already known landmarks
@@ -137,15 +146,18 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
     sigma_z = eye(3*num_old_landmarks_measured)*noise;
 
     #Kalman gain
-    K = sigma * C_t'*(inv(C_t*sigma*C_t' + sigma_z));
+    K = sigma * C_t'*(inv(sigma_z + C_t*sigma*C_t'));
 
     #update mu
     error      = (z_t - h_t);
     correction = K*error;
+    #disp("CORRECTION")
+    #disp(correction)
     mu         = mu + correction;
 
     #update sigma
     sigma = (eye(state_dim) - K*C_t)*sigma;		
+    #disp(sigma)
   endif
 
   #since I have applied the correction, I need to update my
@@ -176,6 +188,12 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
     #retrieve info about the observed landmark
     measurement = observations.observation(i);
 
+    if (measurement.id == 0)
+	    continue;
+    elseif(measurement.id == -1)
+	    measurement.id = last_landmark_id++; %new landmark
+    endif
+
     #fetch the position in the state vector corresponding to the actual measurement
     state_pos_of_landmark=id_to_state_map(measurement.id);
 
@@ -185,27 +203,35 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
       #adjust direct and reverse mappings
       num_landmarks++;
       id_to_state_map(measurement.id)=num_landmarks;
-      disp(num_landmarks)
+      #disp("num_landmarks")
+      #disp(num_landmarks)
       state_to_id_map(num_landmarks)=measurement.id;
 
       measurement_true = R_offset * [measurement.x_pose; measurement.y_pose; measurement.z_pose]  + v_offset;
       
       #landmark position in the world
+      #land_obs = [measurement_true(1),measurement_true(2),measurement_true(3),0,0,0]
+      #land_pose_world = t2v(v2t(mu(1:6))*v2t(land_obs));
       land_pose_world = mu_pos + R *  measurement_true;
 
       #retrieve from the index the position of the landmark block in the state
       new_landmark_state_vector_index=7+3*(num_landmarks-1);
  
       #increase mu and sigma size
+      #disp("mu before")
+      #disp(mu)
       mu(new_landmark_state_vector_index:new_landmark_state_vector_index+2,1) = land_pose_world;
-
+      #disp("mu after")
+      #disp(mu)
       #initial noise assigned to a new landmark
       #for simplicity we put a high value only in the diagonal.
       #A more deeper analysis on the initial noise should be made.
-      initial_landmark_noise=2;
+      initial_landmark_noise=1;
       landmark_sigma = eye(3)*initial_landmark_noise;
 
       #extend the structure
+      #disp("sigma before")
+      #disp(sigma)
       sigma(new_landmark_state_vector_index,:)   = 0;
       sigma(new_landmark_state_vector_index+2,:) = 0;
       sigma(:,new_landmark_state_vector_index)   = 0;
@@ -214,6 +240,8 @@ function [mu, sigma, id_to_state_map, state_to_id_map] = correction(mu, sigma, o
       #add the covariance block
       sigma(new_landmark_state_vector_index:new_landmark_state_vector_index+2,
 	    new_landmark_state_vector_index:new_landmark_state_vector_index+2)=landmark_sigma;
+      #disp("sigma after")
+      #disp(sigma)
 
       printf("observed new landmark with identifier: %i \n",measurement.id);
       fflush(stdout);

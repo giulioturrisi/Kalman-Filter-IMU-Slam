@@ -20,7 +20,7 @@
 function [mu, sigma] = prediction(mu, sigma, transition,prediction_offset)
 
 %Applying the offset
-disp(transition)
+#disp(transition)
 pose = transition.pose;
 
 v_offset = [prediction_offset.x,prediction_offset.y,prediction_offset.z, prediction_offset.phi, prediction_offset.theta, prediction_offset.psi]';
