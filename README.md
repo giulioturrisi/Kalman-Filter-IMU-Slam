@@ -9,6 +9,8 @@ Input File:
 -	Range Finder Observation
 
 
-Launching the file: octave ekf_slam.m
+Launching the file: 
+
+-	octave ekf_slam.m
 
 
