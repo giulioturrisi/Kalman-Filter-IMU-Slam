@@ -19,7 +19,7 @@
 #  [mu, sigma]: the updated mean and covariance
 #  [id_to_state_map, state_to_id_map]: the updated mapping vector between landmark position in mu vector and its id
 
-function [mu, sigma, id_to_state_map, state_to_id_map,last_landmark_id] = correction(mu, sigma, observations, id_to_state_map, state_to_id_map, correction_offset,last_landmark_id)
+function [mu, sigma, id_to_state_map, state_to_id_map,last_landmark_id] = correction(mu, sigma, observations, id_to_state_map, state_to_id_map, correction_offset,last_landmark_id,data_association_on)
 
   #determine how many landmarks we have seen in this step
   num_landmarks_measured = length(observations.observation);
@@ -84,8 +84,10 @@ function [mu, sigma, id_to_state_map, state_to_id_map,last_landmark_id] = correc
     #retrieve info about the observed landmark
     measurement = observations.observation(i);
 
-    if (measurement.id < 1)
-	    continue;
+    if(data_association_on == true)
+      if (measurement.id < 1)
+        continue;
+      endif
     endif
 
     #fetch the position in the state vector corresponding to the actual measurement
@@ -188,10 +190,12 @@ function [mu, sigma, id_to_state_map, state_to_id_map,last_landmark_id] = correc
     #retrieve info about the observed landmark
     measurement = observations.observation(i);
 
-    if (measurement.id == 0)
-	    continue;
-    elseif(measurement.id == -1)
-	    measurement.id = last_landmark_id++; %new landmark
+    if(data_association_on == true)
+      if (measurement.id == 0)
+        continue;
+      elseif(measurement.id == -1)
+        measurement.id = last_landmark_id++; %new landmark
+      endif
     endif
 
     #fetch the position in the state vector corresponding to the actual measurement

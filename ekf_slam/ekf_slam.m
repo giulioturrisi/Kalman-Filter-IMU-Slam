@@ -8,6 +8,8 @@ addpath "../tools/g2o_wrapper"
 addpath "../tools/visualization"
 source "../tools/utilities/geometry_helpers_3d.m"
 
+data_association_on = false
+
 #load your own dataset dataset, without landmarks (first entry remains empty)
 [landmarks, poses, transitions, observations,params_offset] = loadG2o("../dataset/kalman_based_imu_slam.g2o");
 correction_offset = params_offset(1);
@@ -48,7 +50,12 @@ for t = 1:length(transitions)
     transition = transitions(t);
     
     #obtain current observation
-    #observation = observations(t);
+    disp("TRAAANS")
+    disp(transitions(t))
+    disp("OOOBS")
+    disp(observations(t))
+    disp("####")
+    observation = observations(t);
 
     #EKF predict
     #[mu, sigma] = prediction(mu, sigma, transition);
@@ -56,8 +63,11 @@ for t = 1:length(transitions)
     #disp("mu predic")
     #disp(mu(3))
     
-    observation = data_association(mu, sigma, observations(t), state_to_id_map);
-    #disp(observation)
+    if(data_association_on == true)
+      observation = data_association(mu, sigma, observations(t), state_to_id_map);
+    else
+      observation = observations(t);
+    endif
 
     #EKF correct
     [mu, sigma, id_to_state_map, state_to_id_map,last_landmark_id] = correction(mu, 
@@ -65,7 +75,8 @@ for t = 1:length(transitions)
                                                               id_to_state_map, 
                                                               state_to_id_map,
                                                               correction_offset,
-                                                              last_landmark_id);
+                                                              last_landmark_id,
+                                                              data_association_on);
     #disp("mu correct")
     #disp(mu(3))
 

@@ -12,6 +12,7 @@
 
 function observations = data_association(mu, sigma, observations, state_to_id_map)
 
+	disp("QUIIII")
 	mu_pos = mu(1:3,:); # translational part of the robot pose
 	mu_rot = [mu(4,:), mu(5,:), mu(6,:)];
 	#mu_theta = mu(3); # rotation of the robot
