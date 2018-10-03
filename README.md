@@ -1,6 +1,5 @@
 Kalman_Filter_IMU_Slam
 
-..Working in Progress..
 
 
 Input File: 
@@ -12,5 +11,6 @@ Input File:
 Launching the file: 
 
 -	octave ekf_slam.m
+
 
 
